@@ -1,0 +1,27 @@
+---
+- name: "Generate private key for {{certificate_file}}"
+  community.crypto.openssl_privatekey:
+    path: "{{certificate_file}}.private.pem"
+    # default is 4096 but let's be specific
+    size: 4096
+
+- name: "Generate {{certificate_file}} CSR"
+  community.crypto.openssl_csr:
+    path: "{{certificate_file}}.csr"
+    privatekey_path: "{{certificate_file}}.private.pem"
+    common_name: "{{common_name}}"
+    key_usage:
+      - digitalSignature
+    extended_key_usage:
+      - codeSigning
+    create_subject_key_identifier: true
+    basic_constraints:
+      - CA:FALSE
+    basic_constraints_critical: true
+
+- name: "Generate {{certificate_file}}"
+  community.crypto.x509_certificate:
+    path: "{{certificate_file}}"
+    privatekey_path: "{{certificate_file}}.private.pem"
+    csr_path: "{{certificate_file}}.csr"
+    provider: selfsigned

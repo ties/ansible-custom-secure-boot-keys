@@ -1,0 +1,7 @@
+---
+- name: "Enroll {{item.type}} from {{item.file}}"
+  ansible.builtin.shell: "/usr/bin/efi-updatevar -f {{item.file}} {{item.type}}"
+  loop:
+    - { file: "/keys/auth/db.auth", type: "db" }
+    - { file: "/keys/auth/KEK.auth", type: "KEK" }
+    - { file: "/keys/auth/PK.auth", type: "PK" }

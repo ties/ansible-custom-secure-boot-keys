@@ -1,0 +1,1 @@
+An ansible role to setup custom secure boot keys on Fedora. Automates the steps from [sysguides.com tutorial for custom keys on Fedora](https://sysguides.com/fedora-uefi-secure-boot-with-custom-keys).

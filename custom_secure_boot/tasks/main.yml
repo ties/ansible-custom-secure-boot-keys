@@ -1,0 +1,157 @@
+---
+- name: Init directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: 0700
+    owner: root
+    group: root
+  loop:
+    - /keys/auth
+    - /keys/bak
+    - /keys/cfg
+    - /keys/esl
+    - /keys/ms
+    - /keys/oem
+
+- name: Install packages
+  ansible.builtin.dnf:
+    state: present
+    name:
+      - efitools
+      - keyutils
+      - mokutil
+      - openssl
+      - pesign
+      - sbsigntools
+      - kernel-devel
+
+- name: Store the raw output
+  ansible.builtin.shell: /usr/bin/efi-readvar > /keys/bak/all-efi-keys-original.txt
+  args:
+    chdir: /
+    creates: /keys/bak/all-efi-keys-original.txt
+
+- name: Store all old keys
+  ansible.builtin.shell: "/usr/bin/efi-readvar -v {{item}} -o /keys/bak/{{item}}-original.esl"
+  args:
+    chdir: /
+    creates: "/keys/bak/{{item}}-original.esl"
+  loop:
+    - PK
+    - KEK
+    - db
+    - dbx
+
+- name: Create PK certificate
+  ansible.builtin.include_tasks:
+    file: create_cert.yml
+  vars:
+    certificate_file: /keys/PK.pem
+    common_name: Machine Specific Plaftform Key
+
+- name: Create KEK certificate
+  ansible.builtin.include_tasks:
+    file: create_cert.yml
+  vars:
+    certificate_file: /keys/KEK.pem
+    common_name: Machine Specific Key Exchange Key
+
+- name: Create DB certificate
+  ansible.builtin.include_tasks:
+    file: create_cert.yml
+  vars:
+    certificate_file: /keys/DB.pem
+    common_name: Machine Specific Signature Database Key
+
+- name: Generate UUID
+  ansible.builtin.shell: /usr/bin/uuidgen > /keys/uuid.txt
+  args:
+    chdir: /
+    creates: /keys/uuid.txt
+  register: uuid_task
+
+- name: stat PK AUTH
+  ansible.builtin.stat:
+    checksum_algorithm: sha256
+    path: /keys/auth/PK.auth
+  register: pk_auth_pre
+- name: stat KEK AUTH
+  ansible.builtin.stat:
+    checksum_algorithm: sha256
+    path: /keys/auth/KEK.auth
+  register: kek_auth_pre
+- name: stat db AUTH
+  ansible.builtin.stat:
+    checksum_algorithm: sha256
+    path: /keys/auth/db.auth
+  register: db_auth_pre
+
+- name: Create PK AUTH
+  ansible.builtin.include_tasks:
+    file: sign_auth_file.yml
+  vars:
+    uuid_file: /keys/uuid.txt
+    certificate_file: /keys/PK.pem
+    auth_file: /keys/auth/PK.auth
+    type: PK
+ 
+- name: Create KEK AUTH
+  ansible.builtin.include_tasks:
+    file: sign_auth_file.yml
+  vars:
+    uuid_file: /keys/uuid.txt
+    certificate_file: /keys/PK.pem
+    # note that KEK is signed with PK
+    auth_file: /keys/auth/KEK.auth
+    type: KEK
+
+- name: Create DB AUTH
+  ansible.builtin.include_tasks:
+    file: sign_auth_file.yml
+  vars:
+    uuid_file: /keys/uuid.txt
+    certificate_file: /keys/KEK.pem
+    # note that KEK is signed with PK
+    auth_file: /keys/auth/db.auth
+    type: db
+
+- name: stat PK AUTH post
+  ansible.builtin.stat:
+    checksum_algorithm: sha256
+    path: /keys/auth/PK.auth
+  register: pk_auth
+- name: stat KEK AUTH post
+  ansible.builtin.stat:
+    checksum_algorithm: sha256
+    path: /keys/auth/KEK.auth
+  register: kek_auth
+- name: stat db AUTH
+  ansible.builtin.stat:
+    checksum_algorithm: sha256
+    path: /keys/auth/db.auth
+  register: db_auth
+
+- name: Determine if keys changed
+  ansible.builtin.set_fact:
+    keys_changed: "{{(db_auth_pre.stat.checksum is undefined or (db_auth.stat.checksum != db_auth_pre.stat.checksum)) or (kek_auth_pre.stat.checksum is undefined or (kek_auth.stat.checksum != kek_auth_pre.stat.checksum)) or (pk_auth_pre.stat.checksum is undefined or (pk_auth.stat.checksum != pk_auth_pre.stat.checksum))}}"
+
+- name: Check if keys changed
+  ansible.builtin.debug:
+    msg: "Keys changed: {{keys_changed}}: db_auth: {{db_auth.stat.checksum}} kek_auth: {{kek_auth.stat.checksum}} pk_auth: {{pk_auth.stat.checksum}}"
+  changed_when: keys_changed
+
+- name: "Enroll {{item.type}} from {{item.file}}"
+  ansible.builtin.shell: "/usr/bin/efi-updatevar -f {{item.file}} {{item.type}}"
+  loop:
+    - { file: "/keys/auth/db.auth", type: "db" }
+    - { file: "/keys/auth/KEK.auth", type: "KEK" }
+    - { file: "/keys/auth/PK.auth", type: "PK" }
+  when: keys_changed
+
+- name: Sign binaries
+  ansible.builtin.include_tasks:
+    file: sign.yml
+  vars:
+    shim_file: /boot/efi/EFI/fedora/shimx64.efi
+    db_cert: /keys/DB.pem

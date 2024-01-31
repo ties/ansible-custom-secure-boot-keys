@@ -1,0 +1,26 @@
+---
+- name: "Remove {{shim_file}}.unsigned"
+  ansible.builtin.file:
+    path: "{{shim_file}}.unsigned"
+    state: absent
+
+- name: Backup grub shim to temporary location in /root
+  ansible.builtin.copy:
+    remote_src: true
+    src: "{{shim_file}}"
+    dest: "/root/{{shim_file | basename }}.bak"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Remove current signature
+  ansible.builtin.shell: "/usr/bin/pesign -r -u0 -i {{shim_file}} -o {{shim_file}}.unsigned"
+
+- name: Sign shim
+  ansible.builtin.shell: "/usr/bin/sbsign {{shim_file}}.unsigned --key {{db_cert}}.private.pem --cert {{db_cert}} --output {{shim_file}}"
+
+- name: "Remove {{shim_file}}.unsigned"
+  ansible.builtin.file:
+    path: "{{shim_file}}.unsigned"
+    state: absent
+
