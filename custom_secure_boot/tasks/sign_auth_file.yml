@@ -1,12 +1,19 @@
 ---
 - name: "Create {{auth_file}}.esl"
-  ansible.builtin.shell: "/usr/bin/cert-to-efi-sig-list -g $(< {{uuid_file}}) {{certificate_file}} {{auth_file}}.esl"
+  ansible.builtin.shell: >
+    /usr/bin/cert-to-efi-sig-list \
+      -g $(< {{uuid_file}}) \
+      {{subject_cert}} {{auth_file}}.esl
   args:
     chdir: /
     creates: "{{auth_file}}.esl"
 
 - name: "Create {{auth_file}}"
-  ansible.builtin.shell: "/usr/bin/sign-efi-sig-list -g $(< {{uuid_file}}) -t \"$(date +'%F %T')\" -c {{certificate_file}} -k {{certificate_file}}.private.pem {{type}} {{auth_file}}.esl {{auth_file}}"
+  ansible.builtin.shell: >
+    /usr/bin/sign-efi-sig-list -g $(< {{uuid_file}}) \
+      -t "$(date +'%F %T')" \
+      -c {{issuer_cert}} -k {{issuer_cert}}.private.pem \
+      {{type}} {{auth_file}}.esl {{auth_file}}
   args:
     chdir: /
     creates: "{{auth_file}}"

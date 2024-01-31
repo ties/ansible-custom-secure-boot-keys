@@ -92,7 +92,8 @@
     file: sign_auth_file.yml
   vars:
     uuid_file: /keys/uuid.txt
-    certificate_file: /keys/PK.pem
+    issuer_cert: /keys/PK.pem
+    subject_cert: /keys/PK.pem
     auth_file: /keys/auth/PK.auth
     type: PK
  
@@ -101,7 +102,8 @@
     file: sign_auth_file.yml
   vars:
     uuid_file: /keys/uuid.txt
-    certificate_file: /keys/PK.pem
+    issuer_cert: /keys/PK.pem
+    subject_cert: /keys/KEK.pem
     # note that KEK is signed with PK
     auth_file: /keys/auth/KEK.auth
     type: KEK
@@ -111,7 +113,8 @@
     file: sign_auth_file.yml
   vars:
     uuid_file: /keys/uuid.txt
-    certificate_file: /keys/KEK.pem
+    issuer_cert: /keys/KEK.pem
+    subject_cert: /keys/DB.pem
     # note that KEK is signed with PK
     auth_file: /keys/auth/db.auth
     type: db
